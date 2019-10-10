@@ -5,6 +5,7 @@ import multiprocessing
 import psycopg2
 import psycopg2.pool
 import re
+import sys
 
 from config import *
 
@@ -17,7 +18,6 @@ SQL_CREATE_SITELINK_TABLE = f'''
         title   varchar(256)    NOT NULL,
         UNIQUE(id, site, lang)
     );
-    TRUNCATE {TABLE_WIKIDATA_SITELINKS};
 '''
 
 SQL_CREATE_LABEL_TABLE = f'''
@@ -27,7 +27,6 @@ SQL_CREATE_LABEL_TABLE = f'''
         value   varchar(256)    NOT NULL,
         UNIQUE(id, lang)
     );
-    TRUNCATE {TABLE_WIKIDATA_LABELS};
 '''
 
 
@@ -51,23 +50,22 @@ def has_wikipedia_page(item):
 # |___|_| |_|_|\__|
 #
 
-psql_pool = psycopg2.pool.ThreadedConnectionPool(
-    8,
-    8,
+connexion = psycopg2.connect(
     dbname=POSTGRES_DB,
     user=POSTGRES_USER,
     password=POSTGRES_PASSWORD,
     host=POSTGRES_HOST,
     port=POSTGRES_PORT,
 )
-connexion = psql_pool.getconn()
 
 # Create new tables
 cursor = connexion.cursor()
 cursor.execute(SQL_CREATE_SITELINK_TABLE)
 cursor.execute(SQL_CREATE_LABEL_TABLE)
 cursor.close()
+
 connexion.commit()
+connexion.close()
 
 #   ___                     _   _
 #  |_ _|_ __  ___  ___ _ __| |_(_) ___  _ __
@@ -77,6 +75,8 @@ connexion.commit()
 #
 
 processed = 0
+log_files = dict()
+connexions = dict()
 
 
 def process_line(line):
@@ -87,19 +87,40 @@ def process_line(line):
     global processed
     process_name = multiprocessing.current_process().name
 
-    line = line.decode().strip()[:-1]
-
     try:
-        item = json.loads(line)
-    except json.decoder.JSONDecodeError:
+        item = json.loads(line.decode().strip()[:-1])
+    except json.decoder.JSONDecodeError as e:
+        print('Error while decoding JSON:', e, file=sys.stderr)
+        print(line, file=sys.stderr)
         return
+
+    #  Manualy connect to DB for current process
+    if process_name not in connexions:
+        connexions[process_name] = psycopg2.connect(
+            dbname=POSTGRES_DB,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD,
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT,
+        )
+
+    # Decide or not to add the field in the database
+    rejected_filename = 'rejected_' + process_name + '.txt'
+    accepted_filename = 'accepted_' + process_name + '.txt'
+
+    if rejected_filename not in log_files:
+        log_files[rejected_filename] = open(rejected_filename, 'a')
+        log_files[accepted_filename] = open(accepted_filename, 'a')
 
     if not has_wikipedia_page(item):
+        print(item['id'], file=log_files[rejected_filename])
         return
+    else:
+        print(item['id'], file=log_files[accepted_filename])
 
+    #  Insertion into the database
     processed += 1
-    connexion = psql_pool.getconn(key=process_name)
-    cursor = connexion.cursor()
+    cursor = connexions[process_name].cursor()
 
     for site in item['sitelinks'].values():
         match = re.search('(\w+)wiki$', site['site'])
@@ -107,40 +128,50 @@ def process_line(line):
         if not match or match.group(1) not in WIKIDATA_FILTER_WIKI_LANGUAGE:
             continue
 
-        a = cursor.execute(
-            f'INSERT INTO {TABLE_WIKIDATA_SITELINKS} VALUES (%s, %s, %s, %s)',
-            (item['id'], 'wiki', match.group(1), site['title']),
-        )
+        try:
+            cursor.execute(
+                f'INSERT INTO {TABLE_WIKIDATA_SITELINKS}'
+                ' VALUES (%s, %s, %s, %s)'
+                ' ON CONFLICT DO NOTHING',
+                (item['id'], 'wiki', match.group(1), site['title']),
+            )
+        except Exception as e:
+            print('PSQL Query error:', e, file=sys.stderr)
 
     for label in item['labels'].values():
         if label['language'] not in WIKIDATA_LABEL_LANGUAGES:
             continue
 
-        cursor.execute(
-            f'INSERT INTO {TABLE_WIKIDATA_LABELS} VALUES (%s, %s, %s)',
-            (item['id'], label['language'], label['value']),
-        )
+        try:
+            cursor.execute(
+                f'INSERT INTO {TABLE_WIKIDATA_LABELS}'
+                ' VALUES (%s, %s, %s)'
+                ' ON CONFLICT DO NOTHING',
+                (item['id'], label['language'], label['value']),
+            )
+        except Exception as e:
+            print('PSQL Query error:', e, file=sys.stderr)
 
-    connexion.commit()
+    cursor.close()
 
-    # Sometime close the connexion to avoid memory leaks
-    if processed > 10 ** 3:
-        processed = 0
-        connexion.close()
-
-    psql_pool.putconn(connexion, key=process_name)
+    if processed % 1000 == 0:
+        connexions[process_name].commit()
 
 
 #  Concurent insertion
 pool = multiprocessing.Pool()
 
-with bz2.open("wikidata.json.bz2", "r") as wikidata:
+with bz2.open('wikidata.json.bz2', 'r') as wikidata:
     for count, line in enumerate(wikidata):
         pool.apply_async(process_line, (line,))
 
-        if count % 10000 == 0:
-            connexion.commit()
-
-connexion.commit()
 pool.close()
 pool.join()
+
+# Close process connexions and files
+
+for connexion in connexions.values():
+    connexion.close()
+
+for f in log_files.values():
+    f.close()

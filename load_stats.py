@@ -2,6 +2,7 @@
 import gzip
 import os
 import psycopg2
+import sys
 
 from config import *
 
@@ -19,7 +20,11 @@ for i, dump_file in enumerate(STATS_FILES):
     print('({}/{}) {}'.format(i + 1, len(STATS_FILES), path))
 
     for i, line in enumerate(gzip.open(path)):
-        site, page, views, responses = line.decode().strip().split()
+        try:
+            site, page, views, responses = line.decode().strip().split()
+        except Exception as e:
+            print('Error at line', i, ':', e, file=sys.stderr)
+
         page = page.replace('_', ' ')
 
         if site not in STATISTICS_SITES:
@@ -42,9 +47,9 @@ SQL_CREATE_STATS_TABLE = f'''
         domain_code         varchar(64),
         page_title          varchar(1024),
         count_views         integer,
-        total_response_size integer
+        total_response_size integer,
+        UNIQUE(domain_code, page_title)
     );
-    TRUNCATE {TABLE_STATISTICS};
 '''
 
 connexion = psycopg2.connect(
@@ -54,5 +59,20 @@ connexion = psycopg2.connect(
     host=POSTGRES_HOST,
     port=POSTGRES_PORT,
 )
-cursor = conn.cursor()
-cursor.execute(TABLE_CREATE)
+cursor = connexion.cursor()
+cursor.execute(SQL_CREATE_STATS_TABLE)
+
+# Insert rows into the DB
+for i, (lang, pages) in enumerate(stats.items()):
+    print('Lang {}/{}'.format(i + 1, len(stats)))
+
+    for page, views in pages.items():
+        cursor.execute(
+            f'INSERT INTO {TABLE_STATISTICS}'
+            ' VALUES (%s, %s, %s, %s)'
+            ' ON CONFLICT(domain_code, page_title)'
+            ' DO UPDATE SET count_views = %s',
+            (lang, page, views, 0, views),
+        )
+
+    connexion.commit()
