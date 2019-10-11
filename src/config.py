@@ -5,11 +5,6 @@
 #     \_/\_/  |_|_|\_\_|____/ \__,_|\__\__,_|
 #
 
-# Output files
-WIKIDATA_SITELINKS_FILE = 'sitelinks.csv'
-WIKIDATA_LABELS_FILE = 'labels.csv'
-
-
 # Only import items that have a Wikipedia page for one of these languages
 WIKIDATA_FILTER_WIKI_LANGUAGE = ['fr', 'en', 'de']
 
@@ -25,9 +20,6 @@ WIKIDATA_LABEL_LANGUAGES = ['fr', 'en', 'de', 'ja']
 #  ___) | || (_| | |_| \__ \ |_| | (__\__ \
 # |____/ \__\__,_|\__|_|___/\__|_|\___|___/
 #
-
-# Output files
-STATS_FILE = 'stats.csv'
 
 # Directory where to download dumps
 STATS_DUMP_DIR = 'dumps/stats'

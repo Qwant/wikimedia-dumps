@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import bz2
 import csv
+import gzip
 import json
 import multiprocessing
 import re
@@ -26,95 +27,82 @@ def has_wikipedia_page(item):
     return False
 
 
-#   ___                     _   _
-#  |_ _|_ __  ___  ___ _ __| |_(_) ___  _ __
-#   | || '_ \/ __|/ _ \ '__| __| |/ _ \| '_ \
-#   | || | | \__ \  __/ |  | |_| | (_) | | | |
-#  |___|_| |_|___/\___|_|   \__|_|\___/|_| |_|
-#
-
-# Init cache and write titles to outputs
-proc_cache = dict()
-
-with open(WIKIDATA_SITELINKS_FILE, 'w') as f:
-    writer = csv.writer(f)
-    writer.writerow(('id', 'site', 'language', 'title'))
-
-with open(WIKIDATA_LABELS_FILE, 'w') as f:
-    writer = csv.writer(f)
-    writer.writerow(('title', 'language', 'value'))
-
-
-def flush_cache(process_name, filename, force=False):
-    '''Flush the cache if required'''
-    if force or len(proc_cache[process_name][filename]) > 10 ** 3:
-        with open(filename, 'a') as f:
-            writer = csv.writer(f)
-            writer.writerows(proc_cache[process_name][filename])
-            proc_cache[process_name][filename].clear()
-
-
-def process_line(line):
+def process_line(line, sitelinks_filename, labels_filename):
     '''
     Process a line from Wikidata's dump in its raw format.
     Update the cache with eventual new line to insert in output files.
     '''
-    global processed
-    process_name = multiprocessing.current_process().name
-
-    #  Init local caches
-    if process_name not in proc_cache:
-        proc_cache[process_name] = {
-            WIKIDATA_LABELS_FILE: [],
-            WIKIDATA_SITELINKS_FILE: [],
-        }
-
     try:
-        item = json.loads(line.decode().strip()[:-1])
-    except json.decoder.JSONDecodeError as e:
-        print('Error while decoding JSON:', e, file=sys.stderr)
-        print(line, file=sys.stderr)
-        return
+        process_name = multiprocessing.current_process().name
 
-    if not has_wikipedia_page(item):
-        return
+        try:
+            item = json.loads(line.decode().strip()[:-1])
+        except json.decoder.JSONDecodeError as e:
+            print('Error while decoding JSON:', e, file=sys.stderr)
+            print(line, file=sys.stderr)
+            return
 
-    # Fetch sitelinks
-    for site in item['sitelinks'].values():
-        match = re.search('(\w+)wiki$', site['site'])
+        if not has_wikipedia_page(item):
+            return
 
-        if not match or match.group(1) not in WIKIDATA_FILTER_WIKI_LANGUAGE:
-            continue
+        # Fetch sitelinks
+        sitelinks = []
 
-        proc_cache[process_name][WIKIDATA_SITELINKS_FILE].append(
-            (item['id'], 'wiki', match.group(1), site['title'])
-        )
+        for site in item['sitelinks'].values():
+            match = re.search('(\w+)wiki$', site['site'])
 
-    # Fetch labels
-    for label in item['labels'].values():
-        if label['language'] not in WIKIDATA_LABEL_LANGUAGES:
-            continue
+            if (
+                not match
+                or match.group(1) not in WIKIDATA_FILTER_WIKI_LANGUAGE
+            ):
+                continue
 
-        proc_cache[process_name][WIKIDATA_LABELS_FILE].append(
-            (item['id'], label['language'], label['value'])
-        )
+            sitelinks.append(
+                (item['id'], 'wiki', match.group(1), site['title'])
+            )
 
-    # Flush caches
-    flush_cache(process_name, WIKIDATA_LABELS_FILE)
-    flush_cache(process_name, WIKIDATA_SITELINKS_FILE)
+        # Fetch labels
+        labels = []
+
+        for label in item['labels'].values():
+            if label['language'] not in WIKIDATA_LABEL_LANGUAGES:
+                continue
+
+            labels.append((item['id'], label['language'], label['value']))
+
+        return (sitelinks, labels)
+    except Exception as e:
+        print(e)
 
 
-# Concurent insertion
-pool = multiprocessing.Pool()
+def load_wikidata(dump_filename, sitelinks_filename, labels_filename):
+    # Open output files
+    links_file = gzip.open(sitelinks_filename, 'wt')
+    links_writer = csv.writer(links_file)
+    links_writer.writerow(('id', 'site', 'language', 'title'))
 
-with bz2.open('wikidata.json.bz2', 'r') as wikidata:
-    for count, line in enumerate(wikidata):
-        pool.apply_async(process_line, (line,))
+    labels_file = gzip.open(labels_filename, 'wt')
+    labels_writer = csv.writer(labels_file)
+    labels_writer.writerow(('title', 'language', 'value'))
 
-pool.close()
-pool.join()
+    def apply_output(links, labels):
+        links_writer.writerows(links)
+        labels_writer.writerows(labels)
 
-# Flush what remains of caches
-for process_name in proc_cache:
-    flush_cache(process_name, WIKIDATA_LABELS_FILE, force=True)
-    flush_cache(process_name, WIKIDATA_SITELINKS_FILE, force=True)
+    # Concurent insertion
+    pool = multiprocessing.Pool()
+
+    with bz2.open('wikidata.json.bz2', 'r') as wikidata:
+        for count, line in enumerate(wikidata):
+
+            pool.apply_async(
+                process_line,
+                (line, sitelinks_filename, labels_filename),
+                callback=lambda lines: apply_output(*lines) if lines else (),
+            )
+
+    pool.close()
+    pool.join()
+
+    links_file.close()
+    labels_file.close()
