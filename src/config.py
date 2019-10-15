@@ -2,7 +2,7 @@
 # as defined here: https://dumps.wikimedia.org/
 #
 # NOTE: in practice the actual limitation appears to be set to 3
-WIKIDATA_PARALLEL_DOWNLOADS = 2
+WIKIMEDIA_PARALLEL_DOWNLOADS = 2
 
 #  __        ___ _    _ ____        _
 #  \ \      / (_) | _(_)  _ \  __ _| |_ __ _
