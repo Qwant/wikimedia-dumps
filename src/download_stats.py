@@ -28,7 +28,7 @@ def download_stats():
     pool = multiprocessing.Pool(config.WIKIDATA_PARALLEL_DOWNLOADS)
 
     for i, msg in enumerate(
-        pool.imap_unordered(apply_download, config.STATS_DUMP_FILES)
+        pool.imap(apply_download, config.STATS_DUMP_FILES)
     ):
         print('({}/{})'.format(i + 1, len(config.STATS_DUMP_FILES)), msg)
 
