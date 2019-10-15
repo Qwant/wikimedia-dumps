@@ -19,7 +19,7 @@ def has_wikipedia_page(item):
         return False
 
     for site in item['sitelinks'].values():
-        match = re.search('(\w+)wiki$', site['site'])
+        match = re.search(r'(\w+)wiki$', site['site'])
 
         if match and match.group(1) in WIKIDATA_FILTER_WIKI_LANGUAGE:
             return True
@@ -27,52 +27,44 @@ def has_wikipedia_page(item):
     return False
 
 
-def process_line(line, sitelinks_filename, labels_filename):
+def process_line(line):
     '''
     Process a line from Wikidata's dump in its raw format.
     Update the cache with eventual new line to insert in output files.
     '''
+    process_name = multiprocessing.current_process().name
+
     try:
-        process_name = multiprocessing.current_process().name
+        item = json.loads(line.decode().strip()[:-1])
+    except json.decoder.JSONDecodeError as e:
+        print('Error while decoding JSON:', e, file=sys.stderr)
+        print(line, file=sys.stderr)
+        return [], []
 
-        try:
-            item = json.loads(line.decode().strip()[:-1])
-        except json.decoder.JSONDecodeError as e:
-            print('Error while decoding JSON:', e, file=sys.stderr)
-            print(line, file=sys.stderr)
-            return
+    if not has_wikipedia_page(item):
+        return [], []
 
-        if not has_wikipedia_page(item):
-            return
+    # Fetch sitelinks
+    sitelinks = []
 
-        # Fetch sitelinks
-        sitelinks = []
+    for site in item['sitelinks'].values():
+        match = re.search(r'(\w+)wiki$', site['site'])
 
-        for site in item['sitelinks'].values():
-            match = re.search('(\w+)wiki$', site['site'])
+        if not match or match.group(1) not in WIKIDATA_FILTER_WIKI_LANGUAGE:
+            continue
 
-            if (
-                not match
-                or match.group(1) not in WIKIDATA_FILTER_WIKI_LANGUAGE
-            ):
-                continue
+        sitelinks.append((item['id'], 'wiki', match.group(1), site['title']))
 
-            sitelinks.append(
-                (item['id'], 'wiki', match.group(1), site['title'])
-            )
+    # Fetch labels
+    labels = []
 
-        # Fetch labels
-        labels = []
+    for label in item['labels'].values():
+        if label['language'] not in WIKIDATA_LABEL_LANGUAGES:
+            continue
 
-        for label in item['labels'].values():
-            if label['language'] not in WIKIDATA_LABEL_LANGUAGES:
-                continue
+        labels.append((item['id'], label['language'], label['value']))
 
-            labels.append((item['id'], label['language'], label['value']))
-
-        return (sitelinks, labels)
-    except Exception as e:
-        print(e)
+    return sitelinks, labels
 
 
 def load_wikidata(dump_filename, sitelinks_filename, labels_filename):
@@ -92,8 +84,8 @@ def load_wikidata(dump_filename, sitelinks_filename, labels_filename):
     # Concurent insertion
     pool = multiprocessing.Pool()
 
-    with bz2.open('wikidata.json.bz2', 'r') as wikidata:
-        for count, line in enumerate(wikidata):
+    with bz2.open(dump_filename, 'r') as wikidata:
+        for line in wikidata:
 
             pool.apply_async(
                 process_line,

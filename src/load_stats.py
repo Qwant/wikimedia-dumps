@@ -17,15 +17,23 @@ def load_stats(output_file):
 
     stats = {site: dict() for site in STATS_SITES}
 
-    for i, dump_file in enumerate(STATS_DUMP_FILES):
+    for i_file, dump_file in enumerate(STATS_DUMP_FILES):
         path = os.path.join(STATS_DUMP_DIR, dump_file)
-        print('({}/{}) {}'.format(i + 1, len(STATS_DUMP_FILES), path))
+        print('({}/{}) {}'.format(i_file + 1, len(STATS_DUMP_FILES), path))
 
-        for i, line in enumerate(gzip.open(path)):
+        try:
+            f = gzip.open(path, 'r')
+        except FileNotFoundError as e:
+            print('Skipped:', e, file=sys.stderr)
+            continue
+
+        for i_line, line in enumerate(gzip.open(path)):
             try:
-                site, page, views, responses = line.decode().strip().split()
+                #  `responses` is ignored as it appears to always be 0
+                site, page, views, _responses = line.decode().strip().split()
             except Exception as e:
-                print('Error at line', i, ':', e, file=sys.stderr)
+                print('Error at line', i_line, ':', e, file=sys.stderr)
+                break
 
             page = page.replace('_', ' ')
 
@@ -36,6 +44,8 @@ def load_stats(output_file):
                 stats[site][page] = int(views)
             else:
                 stats[site][page] += int(views)
+
+        f.close()
 
     #    ___        _               _
     #   / _ \ _   _| |_ _ __  _   _| |_

@@ -12,7 +12,7 @@ WIKIDATA_FILTER_WIKI_LANGUAGE = ['fr', 'en', 'de']
 WIKIDATA_WIKI_LANGUAGE = WIKIDATA_FILTER_WIKI_LANGUAGE
 
 # Languages we want translations for
-WIKIDATA_LABEL_LANGUAGES = ['fr', 'en', 'de', 'ja']
+WIKIDATA_LABEL_LANGUAGES = WIKIDATA_FILTER_WIKI_LANGUAGE
 
 #  ____  _        _   _     _   _
 # / ___|| |_ __ _| |_(_)___| |_(_) ___ ___
@@ -31,11 +31,12 @@ STATS_ENDPOINT = 'https://dumps.wikimedia.org/other/pageviews'
 STATS_DUMP_FILES = [
     '{year:04d}/{year:04d}-{month:02d}/'
     'pageviews-{year:04d}{month:02d}{day:02d}-{hour:02d}0000.gz'.format(
-        year=2019, month=9, day=day, hour=hour
+        year=2019, month=month, day=day, hour=hour
     )
-    for day in range(1, 30)
+    for month in range(6, 10)
+    for day in range(1, 32)
     for hour in range(24)
 ]
 
 # Sites we want statistics for
-STATS_SITES = ['fr', 'en', 'de', 'ja']
+STATS_SITES = ['fr', 'en', 'de']
