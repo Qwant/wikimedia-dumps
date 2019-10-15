@@ -1,13 +1,60 @@
 #!/usr/bin/env python3
 import csv
 import gzip
+import multiprocessing
 import os
 import sys
 
 import config
 
 
+def load_file(input_filename: str) -> dict:
+    """
+    Load stats for an input file into a dictionary: dict[lang][page] contains
+    the count of views of `page` for the language `lang`.
+    """
+    stats = {site: dict() for site in config.STATS_SITES}
+
+    try:
+        input_file = gzip.open(input_filename, 'rt')
+    except FileNotFoundError as e:
+        print('Skipped unexisting file', input_file, file=sys.stderr)
+        return dict()
+
+    for i_line, line in enumerate(input_file):
+        try:
+            #  `responses` is ignored as it appears to always be 0
+            site, page, views, _responses = line.strip().split()
+        except Exception as e:
+            print(
+                'Error at {}:{},'.format(input_filename, i_line),
+                e,
+                file=sys.stderr,
+            )
+            continue
+
+        page = page.replace('_', ' ')
+
+        if site not in config.STATS_SITES:
+            continue
+
+        if page not in stats[site]:
+            stats[site][page] = int(views)
+        else:
+            stats[site][page] += int(views)
+
+    input_file.close()
+    return stats
+
+
 def load_stats(output_file):
+    files = list(
+        map(
+            lambda dump: os.path.join(config.STATS_DUMP_DIR, dump),
+            config.STATS_DUMP_FILES,
+        )
+    )
+
     #   ____                   __     ___
     #  / ___| _   _ _ __ ___   \ \   / (_) _____      _____
     #  \___ \| | | | '_ ` _ \   \ \ / /| |/ _ \ \ /\ / / __|
@@ -16,36 +63,25 @@ def load_stats(output_file):
     #
 
     stats = {site: dict() for site in config.STATS_SITES}
+    pool = multiprocessing.Pool()
 
-    for i_file, dump_file in enumerate(config.STATS_DUMP_FILES):
-        path = os.path.join(config.STATS_DUMP_DIR, dump_file)
-        print('({}/{})'.format(i_file + 1, len(config.STATS_DUMP_FILES)), path)
+    for i_file, file_stats in enumerate(pool.imap(load_file, files)):
+        print(
+            "({}/{}) {}: updating {} items".format(
+                i_file + 1,
+                len(files),
+                files[i_file],
+                sum(len(lang) for lang in file_stats.values()),
+            )
+        )
 
-        try:
-            f = gzip.open(path, 'r')
-        except FileNotFoundError as e:
-            print('Skipped:', e, file=sys.stderr)
-            continue
+        for lang, pages in file_stats.items():
+            for page, views in pages.items():
+                stats[lang].setdefault(page, 0)
+                stats[lang][page] += views
 
-        for i_line, line in enumerate(gzip.open(path)):
-            try:
-                #  `responses` is ignored as it appears to always be 0
-                site, page, views, _responses = line.decode().strip().split()
-            except Exception as e:
-                print('Error at line', i_line, ':', e, file=sys.stderr)
-                continue
-
-            page = page.replace('_', ' ')
-
-            if site not in config.STATS_SITES:
-                continue
-
-            if page not in stats[site]:
-                stats[site][page] = int(views)
-            else:
-                stats[site][page] += int(views)
-
-        f.close()
+    pool.close()
+    pool.join()
 
     #    ___        _               _
     #   / _ \ _   _| |_ _ __  _   _| |_
@@ -59,7 +95,7 @@ def load_stats(output_file):
         writer.writerow(('lang', 'title', 'views'))
 
         for i, (lang, pages) in enumerate(stats.items()):
-            print('Lang {}/{}: {}'.format(i + 1, len(stats), lang))
+            print('Writing lang {}/{}: {}'.format(i + 1, len(stats), lang))
 
             for page, views in pages.items():
                 writer.writerow((lang, page, views))
