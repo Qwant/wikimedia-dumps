@@ -1,0 +1,7 @@
+__pycache__
+*.swp
+
+# Computed files
+/dumps
+/*.csv.gz
+wikidata.json.bz2
