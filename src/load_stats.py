@@ -4,7 +4,7 @@ import gzip
 import os
 import sys
 
-from config import *
+import config
 
 
 def load_stats(output_file):
@@ -15,11 +15,11 @@ def load_stats(output_file):
     #  |____/ \__,_|_| |_| |_|    \_/  |_|\___| \_/\_/ |___/
     #
 
-    stats = {site: dict() for site in STATS_SITES}
+    stats = {site: dict() for site in config.STATS_SITES}
 
-    for i_file, dump_file in enumerate(STATS_DUMP_FILES):
-        path = os.path.join(STATS_DUMP_DIR, dump_file)
-        print('({}/{}) {}'.format(i_file + 1, len(STATS_DUMP_FILES), path))
+    for i_file, dump_file in enumerate(config.STATS_DUMP_FILES):
+        path = os.path.join(config.STATS_DUMP_DIR, dump_file)
+        print('({}/{})'.format(i_file + 1, len(config.STATS_DUMP_FILES)), path)
 
         try:
             f = gzip.open(path, 'r')
@@ -37,7 +37,7 @@ def load_stats(output_file):
 
             page = page.replace('_', ' ')
 
-            if site not in STATS_SITES:
+            if site not in config.STATS_SITES:
                 continue
 
             if page not in stats[site]:

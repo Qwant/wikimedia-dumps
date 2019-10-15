@@ -7,7 +7,8 @@ from load_stats import load_stats
 from load_wikidata import load_wikidata
 
 
-#  Read CLI arguments
+# Read CLI arguments
+
 parser = argparse.ArgumentParser(
     description='Import datas from various wikidata sources'
 )

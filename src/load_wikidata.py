@@ -7,7 +7,7 @@ import multiprocessing
 import re
 import sys
 
-from config import *
+import config
 
 
 def has_wikipedia_page(item):
@@ -21,7 +21,7 @@ def has_wikipedia_page(item):
     for site in item['sitelinks'].values():
         match = re.search(r'(\w+)wiki$', site['site'])
 
-        if match and match.group(1) in WIKIDATA_FILTER_WIKI_LANGUAGE:
+        if match and match.group(1) in config.WIKIDATA_FILTER_WIKI_LANGUAGE:
             return True
 
     return False
@@ -35,7 +35,7 @@ def process_line(line):
     process_name = multiprocessing.current_process().name
 
     try:
-        item = json.loads(line.decode().strip()[:-1])
+        item = json.loads(line.decode().strip().rstrip(','))
     except json.decoder.JSONDecodeError as e:
         print('Error while decoding JSON:', e, file=sys.stderr)
         print(line, file=sys.stderr)
@@ -50,7 +50,10 @@ def process_line(line):
     for site in item['sitelinks'].values():
         match = re.search(r'(\w+)wiki$', site['site'])
 
-        if not match or match.group(1) not in WIKIDATA_FILTER_WIKI_LANGUAGE:
+        if (
+            not match
+            or match.group(1) not in config.WIKIDATA_FILTER_WIKI_LANGUAGE
+        ):
             continue
 
         sitelinks.append((item['id'], 'wiki', match.group(1), site['title']))
@@ -59,7 +62,7 @@ def process_line(line):
     labels = []
 
     for label in item['labels'].values():
-        if label['language'] not in WIKIDATA_LABEL_LANGUAGES:
+        if label['language'] not in config.WIKIDATA_LABEL_LANGUAGES:
             continue
 
         labels.append((item['id'], label['language'], label['value']))
