@@ -1,3 +1,9 @@
+# Wikimedia dump server only allows for a limited amount of per-ip connections
+# as defined here: https://dumps.wikimedia.org/
+#
+# NOTE: in practice the actual limitation appears to be set to 3
+WIKIDATA_PARALLEL_DOWNLOADS = 2
+
 #  __        ___ _    _ ____        _
 #  \ \      / (_) | _(_)  _ \  __ _| |_ __ _
 #   \ \ /\ / /| | |/ / | | | |/ _` | __/ _` |
@@ -33,7 +39,7 @@ STATS_DUMP_FILES = [
     'pageviews-{year:04d}{month:02d}{day:02d}-{hour:02d}0000.gz'.format(
         year=2019, month=month, day=day, hour=hour
     )
-    for month in range(6, 10)
+    for month in range(3, 4)
     for day in range(1, 32)
     for hour in range(24)
 ]
