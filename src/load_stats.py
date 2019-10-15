@@ -33,7 +33,7 @@ def load_stats(output_file):
                 site, page, views, _responses = line.decode().strip().split()
             except Exception as e:
                 print('Error at line', i_line, ':', e, file=sys.stderr)
-                break
+                continue
 
             page = page.replace('_', ' ')
 
