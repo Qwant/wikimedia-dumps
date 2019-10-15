@@ -18,7 +18,7 @@ def load_file(input_filename: str) -> dict:
     try:
         input_file = gzip.open(input_filename, 'rt')
     except FileNotFoundError as e:
-        print('Skipped unexisting file', input_file, file=sys.stderr)
+        print('Skipped unexisting file', input_filename, file=sys.stderr)
         return dict()
 
     for i_line, line in enumerate(input_file):

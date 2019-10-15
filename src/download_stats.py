@@ -25,7 +25,7 @@ def apply_download(dump_file):
 
 
 def download_stats():
-    pool = multiprocessing.Pool(config.WIKIDATA_PARALLEL_DOWNLOADS)
+    pool = multiprocessing.Pool(config.WIKIMEDIA_PARALLEL_DOWNLOADS)
 
     for i, msg in enumerate(
         pool.imap(apply_download, config.STATS_DUMP_FILES)
