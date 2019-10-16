@@ -9,7 +9,7 @@ from collections import defaultdict
 import config
 
 
-def load_file(input_filename: str) -> dict:
+def load_file(input_filename):
     """
     Load stats for an input file into a dictionary: dict[lang][page] contains
     the count of views of `page` for the language `lang`.
@@ -45,7 +45,7 @@ def load_file(input_filename: str) -> dict:
     return stats
 
 
-def load_stats() -> dict:
+def load_stats():
     files = list(
         map(
             lambda dump: os.path.join(config.STATS_DUMP_DIR, dump),
@@ -90,7 +90,7 @@ def load_stats() -> dict:
     return stats
 
 
-def load_dump_stats(output_file: str):
+def load_dump_stats(output_file):
     stats = load_stats()
 
     with gzip.open(output_file, 'wt') as f:

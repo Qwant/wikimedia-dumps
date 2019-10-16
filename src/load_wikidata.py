@@ -29,13 +29,13 @@ def has_wikipedia_page(item):
 
 def process_line(line):
     '''
-    Process a line from Wikidata's dump in its raw format.
-    Update the cache with eventual new line to insert in output files.
+    Process a line from Wikidata's dump in its raw format and return lists of
+    sitelinks and labels to insert.
     '''
     process_name = multiprocessing.current_process().name
 
     try:
-        item = json.loads(line.decode().strip().rstrip(','))
+        item = json.loads(line.strip().rstrip(','))
     except json.decoder.JSONDecodeError as e:
         print('Error while decoding JSON:', e, file=sys.stderr)
         print(line, file=sys.stderr)
@@ -80,21 +80,13 @@ def load_wikidata(dump_filename, sitelinks_filename, labels_filename):
     labels_writer = csv.writer(labels_file)
     labels_writer.writerow(('title', 'language', 'value'))
 
-    def apply_output(links, labels):
-        links_writer.writerows(links)
-        labels_writer.writerows(labels)
-
     # Concurent insertion
     pool = multiprocessing.Pool()
 
-    with bz2.open(dump_filename, 'r') as wikidata:
-        for line in wikidata:
-
-            pool.apply_async(
-                process_line,
-                (line, sitelinks_filename, labels_filename),
-                callback=lambda lines: apply_output(*lines) if lines else (),
-            )
+    with bz2.open(dump_filename, 'rt') as wikidata:
+        for links, labels in pool.imap_unordered(process_line, wikidata):
+            links_writer.writerows(links)
+            labels_writer.writerows(labels)
 
     pool.close()
     pool.join()
