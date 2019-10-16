@@ -3,7 +3,7 @@ import argparse
 import sys
 
 from download_stats import download_stats
-from load_stats import load_stats
+from load_stats import load_dump_stats
 from load_wikidata import load_wikidata
 
 
@@ -69,7 +69,7 @@ def start_load_stats(args):
     if args.download:
         download_stats()
 
-    load_stats(args.output)
+    load_dump_stats(args.output)
 
 
 cmd_load_stats.set_defaults(func=start_load_stats)

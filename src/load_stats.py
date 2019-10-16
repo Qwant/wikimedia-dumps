@@ -45,7 +45,7 @@ def load_file(input_filename: str) -> dict:
     return stats
 
 
-def load_stats(output_file):
+def load_stats() -> dict:
     files = list(
         map(
             lambda dump: os.path.join(config.STATS_DUMP_DIR, dump),
@@ -87,12 +87,11 @@ def load_stats(output_file):
     pool.close()
     pool.join()
 
-    #    ___        _               _
-    #   / _ \ _   _| |_ _ __  _   _| |_
-    #  | | | | | | | __| '_ \| | | | __|
-    #  | |_| | |_| | |_| |_) | |_| | |_
-    #   \___/ \__,_|\__| .__/ \__,_|\__|
-    #                  |_|
+    return stats
+
+
+def load_dump_stats(output_file: str):
+    stats = load_stats()
 
     with gzip.open(output_file, 'wt') as f:
         writer = csv.writer(f)
