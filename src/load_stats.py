@@ -61,7 +61,14 @@ def load_stats(output_file):
     #
 
     stats = {site: defaultdict(int) for site in config.STATS_SITES}
-    pool = multiprocessing.Pool()
+
+    # Keep one free CPU core to help the main process keeping up with the
+    # collection step.
+    #
+    # NOTE: If this becomes a real issue a fine way to fix this would be to
+    #       distribute the collection step into the loading tasks by using a
+    #       global lock on the computed structure.
+    pool = multiprocessing.Pool(max(1, multiprocessing.cpu_count() - 1))
 
     for i_file, file_stats in enumerate(pool.imap(load_file, files)):
         print(
