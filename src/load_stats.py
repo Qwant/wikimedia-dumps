@@ -4,6 +4,7 @@ import gzip
 import multiprocessing
 import os
 import sys
+from collections import defaultdict
 
 import config
 
@@ -13,7 +14,7 @@ def load_file(input_filename: str) -> dict:
     Load stats for an input file into a dictionary: dict[lang][page] contains
     the count of views of `page` for the language `lang`.
     """
-    stats = {site: dict() for site in config.STATS_SITES}
+    stats = {site: defaultdict(int) for site in config.STATS_SITES}
 
     try:
         input_file = gzip.open(input_filename, 'rt')
@@ -38,10 +39,7 @@ def load_file(input_filename: str) -> dict:
         if site not in config.STATS_SITES:
             continue
 
-        if page not in stats[site]:
-            stats[site][page] = int(views)
-        else:
-            stats[site][page] += int(views)
+        stats[site][page] += int(views)
 
     input_file.close()
     return stats
@@ -62,7 +60,7 @@ def load_stats(output_file):
     #  |____/ \__,_|_| |_| |_|    \_/  |_|\___| \_/\_/ |___/
     #
 
-    stats = {site: dict() for site in config.STATS_SITES}
+    stats = {site: defaultdict(int) for site in config.STATS_SITES}
     pool = multiprocessing.Pool()
 
     for i_file, file_stats in enumerate(pool.imap(load_file, files)):
@@ -77,7 +75,6 @@ def load_stats(output_file):
 
         for lang, pages in file_stats.items():
             for page, views in pages.items():
-                stats[lang].setdefault(page, 0)
                 stats[lang][page] += views
 
     pool.close()
