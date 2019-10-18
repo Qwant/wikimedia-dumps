@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import bz2
 import csv
 import gzip
