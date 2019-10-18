@@ -7,6 +7,7 @@ import sys
 from collections import defaultdict
 
 import config
+from utils import timeperiod, wikimedia_stats_dump_path
 
 
 def load_file(input_filename):
@@ -19,7 +20,12 @@ def load_file(input_filename):
     try:
         input_file = gzip.open(input_filename, 'rt')
     except FileNotFoundError as e:
-        print('Skipped unexisting file', input_filename, file=sys.stderr)
+        print(
+            'Skipped unexisting file',
+            input_filename,
+            'consider using the `--download` parameter',
+            file=sys.stderr,
+        )
         return dict()
 
     for i_line, line in enumerate(input_file):
@@ -46,28 +52,25 @@ def load_file(input_filename):
 
 
 def load_stats():
-    files = list(
-        map(
-            lambda dump: os.path.join(config.STATS_DUMP_DIR, dump),
-            config.STATS_DUMP_FILES,
+    files = [
+        os.path.join(
+            config.STATS_DUMP_DIR,
+            wikimedia_stats_dump_path(day.year, day.month, day.day, hour),
         )
-    )
-
-    #   ____                   __     ___
-    #  / ___| _   _ _ __ ___   \ \   / (_) _____      _____
-    #  \___ \| | | | '_ ` _ \   \ \ / /| |/ _ \ \ /\ / / __|
-    #   ___) | |_| | | | | | |   \ V / | |  __/\ V  V /\__ \
-    #  |____/ \__,_|_| |_| |_|    \_/  |_|\___| \_/\_/ |___/
-    #
+        for day in timeperiod(
+            config.STATS_PERIOD_START, config.STATS_PERIOD_END
+        )
+        for hour in range(24)
+    ]
 
     stats = {site: defaultdict(int) for site in config.STATS_SITES}
 
     # Keep one free CPU core to help the main process keeping up with the
     # collection step.
     #
-    # NOTE: If this becomes a real issue a fine way to fix this would be to
-    #       distribute the collection step into the loading tasks by using a
-    #       global lock on the computed structure.
+    #  NOTE: If this becomes a real issue a fine way to fix this would be to
+    #        distribute the collection step into the loading tasks by using a
+    #        global lock on the computed structure.
     pool = multiprocessing.Pool(max(1, multiprocessing.cpu_count() - 1))
 
     for i_file, file_stats in enumerate(pool.imap(load_file, files)):
