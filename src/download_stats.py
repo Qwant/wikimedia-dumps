@@ -4,6 +4,7 @@ import os
 import urllib.request
 
 import config
+from utils import timeperiod, wikimedia_stats_dump_path
 
 
 def apply_download(dump_file):
@@ -27,10 +28,16 @@ def apply_download(dump_file):
 def download_stats():
     pool = multiprocessing.Pool(config.WIKIMEDIA_PARALLEL_DOWNLOADS)
 
-    for i, msg in enumerate(
-        pool.imap(apply_download, config.STATS_DUMP_FILES)
-    ):
-        print('({}/{})'.format(i + 1, len(config.STATS_DUMP_FILES)), msg)
+    dump_files = [
+        wikimedia_stats_dump_path(day.year, day.month, day.day, hour)
+        for day in timeperiod(
+            config.STATS_PERIOD_START, config.STATS_PERIOD_END
+        )
+        for hour in range(24)
+    ]
+
+    for i, msg in enumerate(pool.imap(apply_download, dump_files)):
+        print('({}/{})'.format(i + 1, len(dump_files)), msg)
 
     pool.close()
     pool.join()

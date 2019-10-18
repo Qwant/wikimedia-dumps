@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 # Wikimedia dump server only allows for a limited amount of per-ip connections
 # as defined here: https://dumps.wikimedia.org/
 #
@@ -31,24 +33,17 @@ WIKIDATA_LABEL_LANGUAGES = WIKIDATA_FILTER_WIKI_LANGUAGE
 STATS_DUMP_DIR = 'dumps/stats'
 
 # Base URL to download dumps.
-# 
-# The official wikimedia endpoint can be found there:
+#
+# The official wikimedia endpoint can be found there:
 #   https://dumps.wikimedia.org/other/pageviews
-# However, you may prefer using unofficial mirrors with higher access
+# However, you may prefer using unofficial mirrors with higher access
 # limitations, a list of mirrors is available here:
-#   https://dumps.wikimedia.org/mirrors.html
+#    https://dumps.wikimedia.org/mirrors.html
 STATS_ENDPOINT = 'https://ftp.acc.umu.se/mirror/wikimedia.org/other/pageviews/'
 
-# Files to download and load
-STATS_DUMP_FILES = [
-    '{year:04d}/{year:04d}-{month:02d}/'
-    'pageviews-{year:04d}{month:02d}{day:02d}-{hour:02d}0000.gz'.format(
-        year=2019, month=month, day=day, hour=hour
-    )
-    for month in range(6, 10)
-    for day in range(1, 32)
-    for hour in range(24)
-]
+# Period of time to load dumps from (end excluded)
+STATS_PERIOD_START = date.today() - timedelta(days=90)
+STATS_PERIOD_END = date.today()
 
 # Sites we want statistics for
 STATS_SITES = ['fr', 'en', 'de']

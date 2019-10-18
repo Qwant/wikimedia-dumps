@@ -1,15 +1,21 @@
 import csv
 import gzip
 import os
+from datetime import date
+from shutil import copy
+
 import pytest
 
 import config
 from load_stats import load_file, load_stats, load_dump_stats
+from utils import wikimedia_stats_dump_path
 
 
-@pytest.fixture(autouse=True)
-def init_dump_files(tmpdir):
-    with gzip.open(os.path.join(tmpdir, 'test1.gz'), 'wt') as f:
+@pytest.fixture(scope="session")
+def dump_dir(tmpdir_factory):
+    tmpdir = tmpdir_factory.mktemp('dumps')
+
+    with gzip.open(tmpdir.join('test1.gz'), 'wt') as f:
         print(
             'fr Albert_Einstein 10 0',
             'en Albert_Einstein 15 0',
@@ -19,7 +25,7 @@ def init_dump_files(tmpdir):
             file=f,
         )
 
-    with gzip.open(os.path.join(tmpdir, 'test2.gz'), 'wt') as f:
+    with gzip.open(tmpdir.join('test2.gz'), 'wt') as f:
         print(
             'en Michael_Jackson 80 0',
             'fr Michael_Jackson 55 0',
@@ -30,7 +36,7 @@ def init_dump_files(tmpdir):
             file=f,
         )
 
-    with gzip.open(os.path.join(tmpdir, 'test3.gz'), 'wt') as f:
+    with gzip.open(tmpdir.join('test3.gz'), 'wt') as f:
         print(
             'fr Michael_Jackson 55 0',
             'fr Badly_formatted ? 10 0',
@@ -39,36 +45,51 @@ def init_dump_files(tmpdir):
             file=f,
         )
 
+    # Reorganise files as the usual hierachy tree
+    os.makedirs(tmpdir.join('2019/2019-01'))
+    copy(
+        tmpdir.join('test1.gz'),
+        tmpdir.join(wikimedia_stats_dump_path(2019, 1, 1, 3)),
+    )
+    copy(
+        tmpdir.join('test2.gz'),
+        tmpdir.join(wikimedia_stats_dump_path(2019, 1, 1, 6)),
+    )
+
+    return tmpdir
+
 
 @pytest.fixture(autouse=True)
-def init_test_config(tmpdir):
-    config.STATS_DUMP_DIR = tmpdir
-    config.STATS_DUMP_FILES = ['test1.gz', 'test2.gz']
+def init_test_config(dump_dir):
+    config.STATS_DUMP_DIR = dump_dir
+    config.STATS_PERIOD_START = date(2019, 1, 1)
+    config.STATS_PERIOD_END = date(2019, 1, 2)
     config.STATS_SITES = ['fr', 'en', 'es']
 
 
-def test_load_file(tmpdir):
+def test_load_file(dump_dir):
     config.STATS_SITES = ['fr']
-    stats = load_file(os.path.join(tmpdir, 'test1.gz'))
+    stats = load_file(os.path.join(dump_dir, 'test1.gz'))
+    print(os.path.join(dump_dir, 'test1.gz'))
 
     assert stats.keys() == {'fr'}
     assert stats['fr']['Albert Einstein'] == 10
     assert stats['fr']['Michael Jackson'] == 50
 
 
-def test_load_unexisting_file(tmpdir):
-    stats = load_file(os.path.join(tmpdir, 'this_is_a_fake_file.gz'))
+def test_load_unexisting_file(dump_dir):
+    stats = load_file(os.path.join(dump_dir, 'this_is_a_fake_file.gz'))
     assert all(not stats[lang] for lang in stats)
 
 
-def test_load_errored_file(tmpdir):
-    stats = load_file(os.path.join(tmpdir, 'test3.gz'))
+def test_load_errored_file(dump_dir):
+    stats = load_file(os.path.join(dump_dir, 'test3.gz'))
 
     assert stats['fr']['Michael Jackson'] == 55
     assert stats['fr']['Albert Einstein'] == 10
 
 
-def test_filter_sites(tmpdir):
+def test_filter_sites(dump_dir):
     config.STATS_SITES = []
     stats = load_stats()
     assert all(not stats[lang] for lang in stats)
@@ -82,10 +103,8 @@ def test_filter_sites(tmpdir):
     assert stats.keys() == {'fr', 'en', 'es'}
 
 
-def test_load_stats(tmpdir):
-    config.STATS_DUMP_FILES = ['test1.gz', 'test2.gz']
+def test_load_stats(dump_dir):
     config.STATS_SITES = ['fr', 'en', 'es']
-
     stats = load_stats()
 
     assert stats.keys() == {'fr', 'en', 'es'}
@@ -95,11 +114,9 @@ def test_load_stats(tmpdir):
     assert stats['fr']['Michael Jackson'] == 50 + 55
 
 
-def test_load_dump_file(tmpdir):
-    config.STATS_DUMP_FILES = ['test1.gz', 'test2.gz']
+def test_load_dump_file(dump_dir):
     config.STATS_SITES = ['fr', 'en']
-
-    output_file = os.path.join(tmpdir, 'output.gz')
+    output_file = os.path.join(dump_dir, 'output.gz')
     load_dump_stats(output_file)
 
     # Compare CSV content with actual result of load_stats
