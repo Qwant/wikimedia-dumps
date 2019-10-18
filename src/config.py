@@ -30,8 +30,14 @@ WIKIDATA_LABEL_LANGUAGES = WIKIDATA_FILTER_WIKI_LANGUAGE
 # Directory where to download dumps
 STATS_DUMP_DIR = 'dumps/stats'
 
-# Base URL to download dumps
-STATS_ENDPOINT = 'https://dumps.wikimedia.org/other/pageviews'
+# Base URL to download dumps.
+# 
+# The official wikimedia endpoint can be found there:
+#   https://dumps.wikimedia.org/other/pageviews
+# However, you may prefer using unofficial mirrors with higher access
+# limitations, a list of mirrors is available here:
+#   https://dumps.wikimedia.org/mirrors.html
+STATS_ENDPOINT = 'https://ftp.acc.umu.se/mirror/wikimedia.org/other/pageviews/'
 
 # Files to download and load
 STATS_DUMP_FILES = [
